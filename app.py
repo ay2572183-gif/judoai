@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from authlib.integrations.flask_client import OAuth
+from authlib.integrations.base_client.errors import OAuthError
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from markupsafe import escape
@@ -45,6 +47,17 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.getenv("COOKIE_SECURE", "false").lower() == "true",
+)
+
+# Authlib keeps the OAuth state in Flask's signed session cookie and performs
+# Google's standards-compliant authorization-code exchange.
+oauth = OAuth(app)
+oauth.register(
+    name="google",
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={"scope": "openid email profile"},
 )
 
 PLANS = {
@@ -212,7 +225,7 @@ def google_profile_from_token(token: str) -> dict[str, Any]:
 
 
 def google_redirect_uri() -> str:
-    return os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5000/auth/google/callback")
+    return "https://judoai.onrender.com/login/callback"
 
 
 def require_ffmpeg() -> None:
@@ -613,6 +626,40 @@ def google_oauth_start():
         "prompt": "select_account",
     }
     return redirect("https://accounts.google.com/o/oauth2/v2/auth?" + requests.compat.urlencode(params))
+
+
+@app.get("/login")
+def login():
+    """Start Google OAuth login using the production callback URL."""
+    if not os.getenv("GOOGLE_CLIENT_ID") or not os.getenv("GOOGLE_CLIENT_SECRET"):
+        flash("Google OAuth credentials are not configured.", "error")
+        return redirect(url_for("index"))
+    return oauth.google.authorize_redirect(google_redirect_uri())
+
+
+@app.get("/login/callback")
+def login_callback():
+    """Complete Google OAuth and create or sign in the local SQLite user."""
+    try:
+        token = oauth.google.authorize_access_token()
+        profile = token.get("userinfo") or oauth.google.userinfo(token=token)
+        if not profile.get("email") or not profile.get("email_verified"):
+            raise ValueError("Google did not return a verified email address.")
+        user = create_or_update_user(
+            {
+                "sub": profile.get("sub"),
+                "email": profile["email"],
+                "name": profile.get("name", "Creator"),
+                "picture": profile.get("picture"),
+            }
+        )
+        session.clear()
+        session["user_id"] = user["id"]
+        return redirect(url_for("dashboard"))
+    except (OAuthError, ValueError, KeyError) as exc:
+        app.logger.warning("Google OAuth login failed: %s", exc)
+        flash("Google sign-in failed. Please try again.", "error")
+        return redirect(url_for("index"))
 
 
 @app.get("/auth/google/callback")
