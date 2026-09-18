@@ -578,11 +578,9 @@ def add_cashfree_checkout(response):
     return response
 
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def index():
-    if session.get("user_id"):
-        return redirect(url_for("dashboard"))
-    return render_template("index.html", google_client_id=os.getenv("GOOGLE_CLIENT_ID", ""))
+    return render_template("index.html")
 
 
 @app.post("/auth/google")
@@ -644,12 +642,9 @@ def google_oauth_callback():
         return redirect(url_for("index"))
 
 
-@app.get("/dev-login")
+@app.route("/dev-login", methods=["GET", "POST"])
 def dev_login():
-    if os.getenv("DEV_MODE", "false").lower() != "true":
-        abort(404)
-    user = create_or_update_user({"sub": "dev-user", "email": "dev@example.com", "name": "Local Creator"})
-    session["user_id"] = user["id"]
+    session["user_id"] = 1
     flash("Dev mode logged in!", "info")
     return redirect(url_for("dashboard"))
 
@@ -692,31 +687,10 @@ def profile_avatar(filename: str):
     return send_from_directory(UPLOAD_DIR, filename)
 
 
-@app.route("/dashboard", methods=["GET", "POST"])
+@app.route("/dashboard", methods=["GET"])
 @login_required
 def dashboard():
-    user = current_user()
-    if request.method == "POST":
-        upload = request.files.get("video")
-        language = request.form.get("language", "en")
-        voice_id = request.form.get("voice_id", "bella")
-        if not upload or not upload.filename or not allowed_file(upload.filename):
-            flash("Upload an MP4, MOV, WEBM, MKV, or AVI video.", "error")
-            return redirect(url_for("dashboard"))
-        if language not in LANGUAGES or voice_id not in {voice["id"] for voice in VOICES}:
-            flash("Choose a valid language and voice.", "error")
-            return redirect(url_for("dashboard"))
-        project_id = uuid.uuid4().hex
-        source_name = secure_filename(upload.filename)
-        video_path = UPLOAD_DIR / f"{project_id}_{source_name}"
-        upload.save(video_path)
-        db = get_db()
-        db.execute("INSERT INTO projects (id, user_id, title, source_filename, target_language, voice_id, characters_used, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'processing', ?)", (project_id, user["id"], Path(source_name).stem, source_name, language, voice_id, utc_now()))
-        db.commit()
-        DUBBING_EXECUTOR.submit(process_dubbing_project, project_id, video_path, language, voice_id, user["id"])
-        flash("Your dub is processing. You can safely leave this page and check Projects shortly.", "info")
-        return redirect(url_for("projects"))
-    return render_template("dashboard_modern.html")
+    return render_template("dashboard.html")
 
 
 @app.get("/text-to-speech")
