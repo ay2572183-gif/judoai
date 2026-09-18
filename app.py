@@ -650,6 +650,7 @@ def dev_login():
         abort(404)
     user = create_or_update_user({"sub": "dev-user", "email": "dev@example.com", "name": "Local Creator"})
     session["user_id"] = user["id"]
+    flash("Dev mode logged in!", "info")
     return redirect(url_for("dashboard"))
 
 
@@ -863,26 +864,8 @@ def health():
 init_db()
 
 if __name__ == "__main__":
-    app.run(host=os.getenv("HOST", "127.0.0.1"), port=int(os.getenv("PORT", "5000")), debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")
-@app.route('/dev-login')
-def dev_login():
-    return render_template('dashboard.html')  # Ya jo page aap kholna chahte hain
-    @app.route('/dev-login')
-def dev_login():
-    # Development testing ke liye login simulation
-    session['user_id'] = 1
-    flash("Dev mode me logged in ho gaye!", "info")
-    return redirect(url_for('dashboard'))
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    return render_template('dashboard.html')
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-if __name__ == '__main__':
-    init_db()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "5000")),
+        debug=os.getenv("FLASK_DEBUG", "false").lower() == "true",
+    )
