@@ -689,26 +689,6 @@ def google_oauth_callback():
         return redirect(url_for("index"))
 
 
-@app.route("/dev-login", methods=["GET", "POST"])
-def dev_login():
-    # Create a complete local developer account so templates always receive
-    # the name and credit balance they expect during deployment checks.
-    user = create_or_update_user(
-        {
-            "sub": "developer-local-account",
-            "email": "developer@example.com",
-            "name": "Developer",
-            "picture": None,
-        }
-    )
-    db = get_db()
-    db.execute("UPDATE users SET credits = ? WHERE id = ?", (10_000, user["id"]))
-    db.commit()
-    session["user_id"] = user["id"]
-    flash("Dev mode logged in!", "info")
-    return redirect(url_for("dashboard"))
-
-
 @app.get("/logout")
 def logout():
     session.clear()
