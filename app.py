@@ -628,7 +628,7 @@ def google_oauth_start():
     return redirect("https://accounts.google.com/o/oauth2/v2/auth?" + requests.compat.urlencode(params))
 
 
-@app.get("/login")
+@app.route("/login", methods=["GET"])
 def login():
     """Start Google OAuth login using the production callback URL."""
     if not os.getenv("GOOGLE_CLIENT_ID") or not os.getenv("GOOGLE_CLIENT_SECRET"):
@@ -637,7 +637,7 @@ def login():
     return oauth.google.authorize_redirect(google_redirect_uri())
 
 
-@app.get("/login/callback")
+@app.route("/login/callback", methods=["GET"])
 def login_callback():
     """Complete Google OAuth and create or sign in the local SQLite user."""
     try:
