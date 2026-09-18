@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Billing | Vocalis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+  <style>body{font-family:'DM Sans',sans-serif;background:#f5f2eb;color:#20231f}.serif{font-family:Fraunces,serif}</style>
+</head>
+<body>
+  <div class="min-h-screen lg:grid lg:grid-cols-[250px_1fr]">
+    <aside class="flex flex-col border-r border-[#ded8ce] bg-[#ebe7de] p-6 lg:min-h-screen">
+      <a href="/" class="flex items-center gap-3 text-lg font-bold"><span class="grid h-9 w-9 place-items-center rounded-full bg-[#20231f] text-sm text-white">V</span> vocalis</a>
+      <nav class="mt-16 space-y-2">
+        <a href="/dashboard" class="block rounded-xl px-4 py-3 text-sm text-[#62665e] hover:bg-white">New dubbing <span class="float-right">+</span></a>
+        <a href="/projects" class="block rounded-xl px-4 py-3 text-sm text-[#62665e] hover:bg-white">Your projects <span class="float-right">↗</span></a>
+        <a href="/text-to-speech" class="block rounded-xl px-4 py-3 text-sm text-[#62665e] hover:bg-white">Text to speech <span class="float-right">↗</span></a>
+        <a href="/billing" class="block rounded-xl bg-[#20231f] px-4 py-3 text-sm font-bold text-white">Billing <span class="float-right">↗</span></a>
+      </nav>
+      <div class="mt-auto hidden border-t border-[#d5d0c5] pt-5 lg:block"><p class="text-xs uppercase tracking-widest text-[#8a8d85]">Signed in as</p><p class="mt-2 truncate text-sm font-bold">{{ current_user.name }}</p><a href="/logout" class="mt-4 block text-sm text-[#dd6846]">Sign out</a></div>
+    </aside>
+    <main class="max-w-5xl px-6 py-10 sm:px-10 lg:px-16 lg:py-16">
+      <p class="text-sm font-bold uppercase tracking-[.18em] text-[#dd6846]">Account / billing</p>
+      <div class="mt-3 flex flex-wrap items-end justify-between gap-5"><div><h1 class="serif text-5xl tracking-tight">More room for your stories.</h1><p class="mt-4 text-[#74786f]">Your balance: <strong>{{ '{:,}'.format(current_user.credits) }}</strong> characters</p></div><a href="/dashboard" class="rounded-full border border-[#cfc8bc] px-5 py-3 text-sm font-bold">Back to dubbing</a></div>
+      {% if not purchases_enabled %}<section class="mt-12 max-w-3xl rounded-3xl border border-[#d7d0c3] bg-white/60 p-7"><p class="text-xs font-bold uppercase tracking-[.18em] text-[#dd6846]">Coming soon</p><h2 class="serif mt-2 text-3xl tracking-tight">Character purchases are temporarily unavailable.</h2><p class="mt-3 text-sm leading-6 text-[#74786f]">We are setting up secure payments. Buying characters will open here once checkout is live.</p></section>{% endif %}
+      <div class="mt-12 grid max-w-3xl gap-6 sm:grid-cols-2">{% for id,plan in plans.items() %}<section class="rounded-3xl border border-[#d7d0c3] bg-white/60 p-7"><p class="text-xs font-bold uppercase tracking-widest text-[#dd6846]">{{ plan.name }}</p><h2 class="serif mt-3 text-5xl">₹{{ plan.price }}</h2><p class="mt-3 text-[#74786f]">{{ '{:,}'.format(plan.characters) }} characters</p><button type="button" onclick="buy('{{ id }}')" class="mt-8 w-full rounded-xl bg-[#20231f] px-5 py-4 text-sm font-bold text-white hover:bg-[#dd6846]">Buy characters →</button></section>{% endfor %}</div>
+      <p id="payment-message" class="mt-6 max-w-3xl text-sm text-[#74786f]"></p>
+      <section class="mt-12 max-w-3xl rounded-3xl border border-[#d7d0c3] bg-white/60 p-7">
+        <div class="flex items-center justify-between gap-4"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#dd6846]">Transaction history</p><h2 class="serif mt-2 text-3xl tracking-tight">Your character purchases</h2></div><span class="rounded-full bg-[#ece8df] px-3 py-1 text-xs font-bold">{{ orders|length }} total</span></div>
+        {% if orders %}<div class="mt-6 divide-y divide-[#e5dfd5]">{% for order in orders %}<div class="flex flex-wrap items-center justify-between gap-4 py-4"><div><p class="font-bold">{{ plans.get(order.plan_id, {}).get('name', order.plan_id) }} plan</p><p class="mt-1 text-xs text-[#74786f]">{{ order.created_at[:10] }} · {{ '{:,}'.format(order.characters) }} characters · Order {{ order.id[:12] }}</p></div><div class="text-right"><p class="font-bold">₹{{ order.amount }}</p><p class="mt-1 text-xs font-bold uppercase tracking-wider {% if order.status == 'paid' %}text-[#31845b]{% elif order.status == 'failed' %}text-red-600{% else %}text-[#b27b22]{% endif %}">{{ order.status }}</p></div></div>{% endfor %}</div>{% else %}<p class="mt-6 text-sm text-[#74786f]">No character purchases yet. Your future purchases will appear here.</p>{% endif %}
+      </section>
+    </main>
+  </div>
+  <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+  <script>async function buy(plan){const message=document.getElementById('payment-message');message.textContent='Creating secure payment...';const response=await fetch('/billing/create-order',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({plan_id:plan})});const data=await response.json();if(!response.ok){message.textContent=data.error||'Could not create payment.';return}if(data.development||!data.payment_session_id){message.textContent='Cashfree credentials are required for checkout.';return}Cashfree({mode:'{{ cashfree_env }}'}).checkout({paymentSessionId:data.payment_session_id,redirectTarget:'_self'});}</script>
+</body>
+</html>
