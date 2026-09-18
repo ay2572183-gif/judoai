@@ -644,7 +644,20 @@ def google_oauth_callback():
 
 @app.route("/dev-login", methods=["GET", "POST"])
 def dev_login():
-    session["user_id"] = 1
+    # Create a complete local developer account so templates always receive
+    # the name and credit balance they expect during deployment checks.
+    user = create_or_update_user(
+        {
+            "sub": "developer-local-account",
+            "email": "developer@example.com",
+            "name": "Developer",
+            "picture": None,
+        }
+    )
+    db = get_db()
+    db.execute("UPDATE users SET credits = ? WHERE id = ?", (10_000, user["id"]))
+    db.commit()
+    session["user_id"] = user["id"]
     flash("Dev mode logged in!", "info")
     return redirect(url_for("dashboard"))
 
@@ -690,7 +703,8 @@ def profile_avatar(filename: str):
 @app.route("/dashboard", methods=["GET"])
 @login_required
 def dashboard():
-    return render_template("dashboard.html")
+    user = current_user() or {"name": "Developer", "credits": 10_000}
+    return render_template("dashboard.html", current_user=user)
 
 
 @app.get("/text-to-speech")
